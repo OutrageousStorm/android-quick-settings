@@ -1,0 +1,10 @@
+[package]
+name = "android-quick-settings"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[[bin]]
+name = "aqs"
+path = "src/main.rs"
