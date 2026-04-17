@@ -1,0 +1,23 @@
+name: Test CLI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Lint
+        run: python -m py_compile *.py
+
+      - name: Create help doc
+        run: python quick_settings.py --help > COMMANDS.md || true
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: quick-settings
+          path: quick_settings.py
