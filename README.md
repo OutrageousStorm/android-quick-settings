@@ -1,25 +1,21 @@
 # ⚙️ Android Quick Settings
 
-One-liner ADB commands to toggle common Android settings instantly.
-
-## Usage
+Rust CLI tool to quickly toggle Android settings via ADB. Fast, no-dependency binary.
 
 ```bash
-./quick-settings.sh airplane-on
-./quick-settings.sh wifi-off
-./quick-settings.sh bluetooth-on
-./quick-settings.sh dev-on
-./quick-settings.sh screen-timeout 60
+cargo build --release
+./target/release/aqs brightness 180
+./target/release/aqs wifi on
+./target/release/aqs location off
+./target/release/aqs airplane-mode toggle
+./target/release/aqs settings list
 ```
 
-## Commands
-
-- `airplane-on/off` — toggle airplane mode
-- `wifi-on/off` — toggle WiFi
-- `bluetooth-on/off` — toggle Bluetooth
-- `dev-on/off` — enable/disable developer options
-- `adb-on/off` — toggle USB debugging
-- `screen-timeout N` — set screen timeout to N seconds
-- `brightness N` — set brightness 0-255
-- `animations-off/on` — disable animation scale
-- `usb-tether-on/off` — USB tethering
+## Supported toggles
+- brightness [0-255]
+- wifi [on|off|toggle]
+- bluetooth [on|off|toggle]
+- location [on|off|toggle]
+- airplane-mode [on|off|toggle]
+- doze [on|off]
+- animations [on|off|toggle]
