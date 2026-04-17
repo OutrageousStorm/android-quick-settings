@@ -1,105 +1,167 @@
-use std::process::Command;
-use std::env;
+use clap::{Parser, Subcommand};
+use colored::*;
+use regex::Regex;
+use std::process::{Command, Stdio};
 
-fn adb(cmd: &str) -> String {
+#[derive(Parser)]
+#[command(name = "aqs", about = "Android Quick Settings Manager", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Toggle airplane mode
+    Airplane {
+        #[arg(value_parser = ["on", "off"])]
+        state: Option<String>,
+    },
+    /// Toggle WiFi
+    Wifi {
+        #[arg(value_parser = ["on", "off"])]
+        state: Option<String>,
+    },
+    /// Toggle Bluetooth
+    Bluetooth {
+        #[arg(value_parser = ["on", "off"])]
+        state: Option<String>,
+    },
+    /// Set brightness (0-255)
+    Brightness { level: u8 },
+    /// Set screen timeout (minutes)
+    Timeout { minutes: u32 },
+    /// Enable/disable location
+    Location {
+        #[arg(value_parser = ["on", "off"])]
+        state: Option<String>,
+    },
+    /// Show current device settings status
+    Status,
+    /// Batch apply settings from JSON
+    Batch { file: String },
+}
+
+fn adb_shell(cmd: &str) -> String {
     let output = Command::new("adb")
         .args(&["shell", cmd])
+        .stdout(Stdio::piped())
         .output()
-        .expect("Failed to execute adb");
+        .expect("Failed to run adb");
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
-fn set_brightness(level: u8) {
-    adb(&format!("settings put system screen_brightness {}", level.min(255)));
-    println!("✓ Brightness set to {}", level);
+fn get_setting(namespace: &str, key: &str) -> String {
+    adb_shell(&format!("settings get {} {}", namespace, key))
+        .trim()
+        .to_string()
 }
 
-fn toggle_wifi(state: &str) {
-    let val = match state {
-        "on" => "1",
-        "off" => "0",
-        "toggle" => {
-            let status = adb("settings get global wifi_on");
-            if status.contains("1") { "0" } else { "1" }
-        },
-        _ => return println!("Usage: aqs wifi [on|off|toggle]"),
-    };
-    adb(&format!("cmd wifi set-wifi-enabled {}", val == "1"));
-    println!("✓ WiFi {}", if val == "1" { "ON" } else { "OFF" });
+fn put_setting(namespace: &str, key: &str, value: &str) {
+    adb_shell(&format!("settings put {} {} {}", namespace, key, value));
 }
 
-fn toggle_bluetooth(state: &str) {
-    let val = match state {
-        "on" => "1",
-        "off" => "0",
-        "toggle" => {
-            let status = adb("settings get global bluetooth_on");
-            if status.contains("1") { "0" } else { "1" }
-        },
-        _ => return println!("Usage: aqs bluetooth [on|off|toggle]"),
-    };
-    adb(&format!("svc bluetooth {'{}' if val == \"1\" else '{}'}"));
-    println!("✓ Bluetooth {}", if val == "1" { "ON" } else { "OFF" });
-}
+fn get_status() {
+    println!("{}", "Device Settings Status".bold().underline());
+    
+    let settings = [
+        ("Airplane mode", "global", "airplane_mode_on"),
+        ("WiFi", "global", "wifi_on"),
+        ("Bluetooth", "global", "bluetooth_on"),
+        ("Location", "secure", "location_mode"),
+        ("Brightness", "system", "screen_brightness"),
+        ("Screen timeout", "system", "screen_off_timeout"),
+    ];
 
-fn toggle_location(state: &str) {
-    let val = match state {
-        "on" => "1",
-        "off" => "0",
-        _ => return println!("Usage: aqs location [on|off]"),
-    };
-    adb(&format!("settings put secure location_mode {}", val));
-    println!("✓ Location {}", if val == "1" { "ON" } else { "OFF" });
+    for (name, ns, key) in &settings {
+        let val = get_setting(ns, key);
+        let status = match val.as_str() {
+            "0" | "" => "OFF".red(),
+            "1" => "ON".green(),
+            _ => val.normal(),
+        };
+        println!("  {:<18} {}", format!("{}:", name), status);
+    }
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    
-    if args.len() < 2 {
-        println!("Android Quick Settings CLI");
-        println!("Usage: aqs <command> [value]");
-        println!("\nCommands:");
-        println!("  brightness <0-255>  Set screen brightness");
-        println!("  wifi [on|off|toggle]");
-        println!("  bluetooth [on|off|toggle]");
-        println!("  location [on|off]");
-        println!("  airplane-mode [on|off|toggle]");
-        println!("  doze [on|off]");
-        return;
-    }
+    let cli = Cli::parse();
 
-    match args[1].as_str() {
-        "brightness" => {
-            if let Ok(level) = args.get(2).unwrap_or(&"0".to_string()).parse::<u8>() {
-                set_brightness(level);
-            }
-        },
-        "wifi" => toggle_wifi(args.get(2).map(|s| s.as_str()).unwrap_or("toggle")),
-        "bluetooth" => toggle_bluetooth(args.get(2).map(|s| s.as_str()).unwrap_or("toggle")),
-        "location" => toggle_location(args.get(2).map(|s| s.as_str()).unwrap_or("on")),
-        "airplane-mode" => {
-            let val = match args.get(2).map(|s| s.as_str()) {
+    match cli.command {
+        Commands::Airplane { state } => {
+            let val = match state.as_deref() {
                 Some("on") => "1",
                 Some("off") => "0",
-                Some("toggle") => {
-                    let status = adb("settings get global airplane_mode_on");
-                    if status.contains("1") { "0" } else { "1" }
-                },
-                _ => return println!("Usage: aqs airplane-mode [on|off|toggle]"),
+                None => {
+                    let cur = get_setting("global", "airplane_mode_on");
+                    if cur == "1" { "0" } else { "1" }
+                }
+                _ => "0",
             };
-            adb(&format!("settings put global airplane_mode_on {}", val));
-            println!("✓ Airplane mode {}", if val == "1" { "ON" } else { "OFF" });
-        },
-        "doze" => {
-            let val = args.get(2).map(|s| s.as_str()).unwrap_or("on");
-            if val == "on" {
-                adb("dumpsys deviceidle enable deep");
-                println!("✓ Doze enabled");
-            } else {
-                adb("dumpsys deviceidle disable deep");
-                println!("✓ Doze disabled");
-            }
-        },
-        _ => println!("Unknown command: {}", args[1]),
+            put_setting("global", "airplane_mode_on", val);
+            println!("{} Airplane mode: {}", "✓".green(), if val == "1" { "ON" } else { "OFF" });
+        }
+
+        Commands::Wifi { state } => {
+            let val = match state.as_deref() {
+                Some("on") => "1",
+                Some("off") => "0",
+                None => {
+                    let cur = get_setting("global", "wifi_on");
+                    if cur == "1" { "0" } else { "1" }
+                }
+                _ => "0",
+            };
+            put_setting("global", "wifi_on", val);
+            println!("{} WiFi: {}", "✓".green(), if val == "1" { "ON" } else { "OFF" });
+        }
+
+        Commands::Bluetooth { state } => {
+            let val = match state.as_deref() {
+                Some("on") => "1",
+                Some("off") => "0",
+                None => {
+                    let cur = get_setting("global", "bluetooth_on");
+                    if cur == "1" { "0" } else { "1" }
+                }
+                _ => "0",
+            };
+            put_setting("global", "bluetooth_on", val);
+            println!("{} Bluetooth: {}", "✓".green(), if val == "1" { "ON" } else { "OFF" });
+        }
+
+        Commands::Brightness { level } => {
+            put_setting("system", "screen_brightness_mode", "0"); // manual
+            put_setting("system", "screen_brightness", &level.to_string());
+            println!("{} Brightness set to {}", "✓".green(), level);
+        }
+
+        Commands::Timeout { minutes } => {
+            let ms = minutes as u64 * 60 * 1000;
+            put_setting("system", "screen_off_timeout", &ms.to_string());
+            println!("{} Screen timeout: {} min", "✓".green(), minutes);
+        }
+
+        Commands::Location { state } => {
+            let val = match state.as_deref() {
+                Some("on") => "3",  // high accuracy
+                Some("off") => "0",
+                None => {
+                    let cur = get_setting("secure", "location_mode");
+                    if cur == "0" { "3" } else { "0" }
+                }
+                _ => "0",
+            };
+            put_setting("secure", "location_mode", val);
+            println!("{} Location: {}", "✓".green(), if val != "0" { "ON" } else { "OFF" });
+        }
+
+        Commands::Status => {
+            get_status();
+        }
+
+        Commands::Batch { file } => {
+            println!("Batch mode not yet implemented");
+        }
     }
 }
