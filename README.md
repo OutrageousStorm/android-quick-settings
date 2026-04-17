@@ -1,24 +1,23 @@
 # ⚙️ Android Quick Settings
 
-Fast Rust CLI to toggle Android settings via ADB — airplane mode, WiFi, Bluetooth, brightness, location, timeouts.
+Blazing-fast Bash CLI to toggle Android settings without the slow UI.
 
 ## Install
-
 ```bash
-cargo install --path .
-# Or: cargo build --release
+curl https://raw.githubusercontent.com/OutrageousStorm/android-quick-settings/main/quick-settings -o /usr/local/bin/quick-settings
+chmod +x /usr/local/bin/quick-settings
 ```
 
 ## Usage
-
 ```bash
-aqs airplane              # toggle airplane mode
-aqs wifi on               # turn WiFi on
-aqs bluetooth off         # turn Bluetooth off
-aqs brightness 200        # set brightness (0-255)
-aqs timeout 5             # screen timeout 5 minutes
-aqs location on           # enable location
-aqs status                # show all settings
+quick-settings brightness 200      # Set brightness
+quick-settings airplane on         # Enable airplane mode
+quick-settings wifi off            # Disable WiFi
+quick-settings doze                # Force deep doze
+quick-settings list                # Show all commands
 ```
 
-All operations via ADB to connected device. No root needed.
+## Features
+- Single bash script, instant execution
+- No Python, no dependencies
+- Works on any Linux/Mac with ADB
