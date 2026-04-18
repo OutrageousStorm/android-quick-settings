@@ -1,0 +1,8 @@
+{
+  "name": "android-quick-settings",
+  "version": "0.1.0",
+  "description": "Rapidly adjust Android settings via ADB",
+  "bin": {
+    "aqs": "cli.js"
+  }
+}
